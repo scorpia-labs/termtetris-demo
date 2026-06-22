@@ -145,7 +145,9 @@ def save_high_score(score):
         pass
 
 
-def draw_board(stdscr, game):
+def render_game(stdscr, game, high_scores, paused):
+    stdscr.erase()
+
     # Draw border
     for y in range(BOARD_HEIGHT + 2):
         stdscr.addstr(y, 0, "│")
@@ -176,6 +178,33 @@ def draw_board(stdscr, game):
             py = game.current_piece.y + by
             if py >= 0 and py < BOARD_HEIGHT and px >= 0 and px < BOARD_WIDTH:
                 stdscr.addstr(py + 1, px * 2 + 1, BLOCK_CHAR, color)
+
+    # Draw UI
+    info_x = BOARD_WIDTH * 2 + 4
+    stdscr.addstr(2, info_x, f"Score: {game.score}")
+    stdscr.addstr(3, info_x, f"Level: {game.level}")
+    stdscr.addstr(4, info_x, f"Lines: {game.lines_cleared}")
+
+    stdscr.addstr(6, info_x, "Controls:")
+    stdscr.addstr(7, info_x, "← → : Move")
+    stdscr.addstr(8, info_x, "↑   : Rotate")
+    stdscr.addstr(9, info_x, "↓   : Soft Drop")
+    stdscr.addstr(10, info_x, "SPC : Hard Drop")
+    stdscr.addstr(11, info_x, "p   : Pause")
+    stdscr.addstr(12, info_x, "q   : Quit")
+
+    if high_scores:
+        stdscr.addstr(14, info_x, "High Scores:")
+        for i, hs in enumerate(high_scores):
+            stdscr.addstr(15 + i, info_x, f"{i+1}. {hs}")
+
+    if paused:
+        stdscr.addstr(BOARD_HEIGHT // 2, (BOARD_WIDTH * 2) // 2 - 3, "PAUSED", curses.A_BOLD)
+    elif game.game_over:
+        stdscr.addstr(BOARD_HEIGHT // 2, (BOARD_WIDTH * 2) // 2 - 4, "GAME OVER", curses.A_BOLD)
+        stdscr.addstr(BOARD_HEIGHT // 2 + 1, (BOARD_WIDTH * 2) // 2 - 6, "Press 'q' to quit")
+
+    stdscr.refresh()
 
 
 def main(stdscr):
@@ -224,8 +253,11 @@ def main(stdscr):
             elif key == curses.KEY_UP:
                 game.rotate_piece()
             elif key == ord(' '):
-                while game.drop_piece():
+                while game.move_piece(0, 1):
                     pass
+                render_game(stdscr, game, high_scores, paused)
+                time.sleep(0.15)
+                game.lock_piece()
                 last_drop_time = current_time
 
             # Automatic drop based on level
@@ -234,41 +266,12 @@ def main(stdscr):
                 game.drop_piece()
                 last_drop_time = current_time
 
-        stdscr.erase()
+        if game.game_over and not score_saved:
+            save_high_score(game.score)
+            high_scores = load_high_scores() # reload so they show immediately
+            score_saved = True
 
-        # Draw game
-        draw_board(stdscr, game)
-
-        # Draw UI
-        info_x = BOARD_WIDTH * 2 + 4
-        stdscr.addstr(2, info_x, f"Score: {game.score}")
-        stdscr.addstr(3, info_x, f"Level: {game.level}")
-        stdscr.addstr(4, info_x, f"Lines: {game.lines_cleared}")
-
-        stdscr.addstr(6, info_x, "Controls:")
-        stdscr.addstr(7, info_x, "← → : Move")
-        stdscr.addstr(8, info_x, "↑   : Rotate")
-        stdscr.addstr(9, info_x, "↓   : Soft Drop")
-        stdscr.addstr(10, info_x, "SPC : Hard Drop")
-        stdscr.addstr(11, info_x, "p   : Pause")
-        stdscr.addstr(12, info_x, "q   : Quit")
-
-        if high_scores:
-            stdscr.addstr(14, info_x, "High Scores:")
-            for i, hs in enumerate(high_scores):
-                stdscr.addstr(15 + i, info_x, f"{i+1}. {hs}")
-
-        if paused:
-            stdscr.addstr(BOARD_HEIGHT // 2, (BOARD_WIDTH * 2) // 2 - 3, "PAUSED", curses.A_BOLD)
-        elif game.game_over:
-            stdscr.addstr(BOARD_HEIGHT // 2, (BOARD_WIDTH * 2) // 2 - 4, "GAME OVER", curses.A_BOLD)
-            stdscr.addstr(BOARD_HEIGHT // 2 + 1, (BOARD_WIDTH * 2) // 2 - 6, "Press 'q' to quit")
-            if not score_saved:
-                save_high_score(game.score)
-                high_scores = load_high_scores() # reload so they show immediately
-                score_saved = True
-
-        stdscr.refresh()
+        render_game(stdscr, game, high_scores, paused)
         time.sleep(0.01)
 
 if __name__ == "__main__":
